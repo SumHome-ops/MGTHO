@@ -67,8 +67,6 @@ async function ac(path, method = "GET", body = null) {
   return res.json();
 }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
 // ── Contact Fetching ──────────────────────────────────────────────────────────
 async function getAllBookLeads() {
   let contacts = [], offset = 0, limit = 100;
@@ -162,6 +160,24 @@ async function createAndSendCampaign(emailData, batchLabel) {
   return campaignId;
 }
 
+// ── Queue Cleanup ─────────────────────────────────────────────────────────────
+// Called at the start of each run to unsubscribe anyone left over from the
+// previous day's queue. Contacts are already tagged as "sent" so this is
+// purely a housekeeping step.
+async function cleanupQueueList() {
+  let removed = 0, offset = 0;
+  while (true) {
+    const res = await ac(`/contacts?listid=${QUEUE_LIST_ID}&limit=100&offset=${offset}`);
+    const batch = res.contacts || [];
+    if (batch.length === 0) break;
+    for (const c of batch) await unsubscribeFromQueue(c.id);
+    removed += batch.length;
+    if (batch.length < 100) break;
+    offset += 100;
+  }
+  if (removed) console.log(`  Cleaned ${removed} contact(s) from queue list`);
+}
+
 // ── Main Cron Logic ───────────────────────────────────────────────────────────
 async function processSequence(contacts, schedule, skipIfPurchased = false) {
   const now = Date.now();
@@ -177,13 +193,8 @@ async function processSequence(contacts, schedule, skipIfPurchased = false) {
       const ageMs = now - new Date(contact.cdate).getTime();
       if (ageMs < windowStart || ageMs >= windowEnd) continue;
 
-      // Fetch their tags
       const tags = await getContactTags(contact.id);
-
-      // Skip if already received this email
-      if (tags.includes(String(sentTagId))) continue;
-
-      // Skip re-engagement if they've purchased
+      if (tags.includes(String(sentTagId))) continue; // already received this email
       if (skipIfPurchased && tags.includes(PURCHASED_TAG_ID)) continue;
 
       eligible.push(contact);
@@ -196,25 +207,17 @@ async function processSequence(contacts, schedule, skipIfPurchased = false) {
 
     console.log(`  ${step.sentTag}: ${eligible.length} contact(s) at day ${step.day}`);
 
-    // Subscribe to queue list
-    for (const c of eligible) await subscribeToQueue(c.id);
-
-    // Create and schedule campaign
-    const campaignId = await createAndSendCampaign(step.email, step.sentTag);
-
-    // Wait for AC to process (65 seconds to ensure campaign fires)
-    if (campaignId) {
-      await sleep(65000);
-    }
-
-    // Clean up: unsubscribe from queue, tag as sent
+    // Tag as sent FIRST (prevents double-sends even if something fails later)
     for (const c of eligible) {
-      await unsubscribeFromQueue(c.id);
       if (sentTagId) await addTag(c.id, sentTagId);
     }
 
-    // Brief pause between email steps
-    await sleep(3000);
+    // Subscribe to queue list so campaign can target them
+    for (const c of eligible) await subscribeToQueue(c.id);
+
+    // Create campaign targeting queue list and schedule for +2 min
+    // No sleep needed — queue list cleanup happens at the TOP of the next run
+    await createAndSendCampaign(step.email, step.sentTag);
   }
 }
 
@@ -236,6 +239,10 @@ module.exports = async (req, res) => {
   console.log(`[sequence-runner] Starting — ${new Date().toISOString()}`);
 
   try {
+    // Clean up queue list from previous run first
+    console.log("[sequence-runner] Cleaning up queue list...");
+    await cleanupQueueList();
+
     const contacts = await getAllBookLeads();
     console.log(`[sequence-runner] Found ${contacts.length} book-lead contacts`);
 
