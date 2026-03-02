@@ -36,26 +36,27 @@ const TAG_IDS = {
 };
 
 // ── Email Schedule ────────────────────────────────────────────────────────────
-// Welcome sequence: Days since subscribe contact joined List 5 (book-lead tag)
-// Re-engagement: Days since subscribe, after welcome is complete, no purchase
-const WELCOME_SCHEDULE = [
-  { day: 0,  sentTag: "mgtho-email-1-sent", email: email1() },
-  { day: 1,  sentTag: "mgtho-email-2-sent", email: email2() },
-  { day: 3,  sentTag: "mgtho-email-3-sent", email: email3() },
-  { day: 5,  sentTag: "mgtho-email-4-sent", email: email4() },
-  { day: 7,  sentTag: "mgtho-email-5-sent", email: email5() },
-  { day: 10, sentTag: "mgtho-email-6-sent", email: email6() },
-  { day: 14, sentTag: "mgtho-email-7-sent", email: email7() },
-];
-
-// Re-engagement starts day 21 (1 week after nurture ends on day 14)
-const REENGAGE_SCHEDULE = [
-  { day: 21, sentTag: "mgtho-re-1-sent", email: re1() },
-  { day: 24, sentTag: "mgtho-re-2-sent", email: re2() },
-  { day: 28, sentTag: "mgtho-re-3-sent", email: re3() },
-  { day: 33, sentTag: "mgtho-re-4-sent", email: re4() },
-  { day: 38, sentTag: "mgtho-re-5-sent", email: re5() },
-];
+// Built lazily (inside the handler) to avoid const hoisting issues.
+// Call getSchedules() to retrieve both arrays.
+function getSchedules() {
+  const welcome = [
+    { day: 0,  sentTag: "mgtho-email-1-sent", email: email1() },
+    { day: 1,  sentTag: "mgtho-email-2-sent", email: email2() },
+    { day: 3,  sentTag: "mgtho-email-3-sent", email: email3() },
+    { day: 5,  sentTag: "mgtho-email-4-sent", email: email4() },
+    { day: 7,  sentTag: "mgtho-email-5-sent", email: email5() },
+    { day: 10, sentTag: "mgtho-email-6-sent", email: email6() },
+    { day: 14, sentTag: "mgtho-email-7-sent", email: email7() },
+  ];
+  const reengage = [
+    { day: 21, sentTag: "mgtho-re-1-sent", email: re1() },
+    { day: 24, sentTag: "mgtho-re-2-sent", email: re2() },
+    { day: 28, sentTag: "mgtho-re-3-sent", email: re3() },
+    { day: 33, sentTag: "mgtho-re-4-sent", email: re4() },
+    { day: 38, sentTag: "mgtho-re-5-sent", email: re5() },
+  ];
+  return { welcome, reengage };
+}
 
 // ── AC API Helper ─────────────────────────────────────────────────────────────
 async function ac(path, method = "GET", body = null) {
@@ -250,13 +251,15 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true, message: "No contacts to process" });
     }
 
+    const { welcome, reengage } = getSchedules();
+
     // Welcome sequence (all contacts)
     console.log("\n── Welcome Sequence ──");
-    await processSequence(contacts, WELCOME_SCHEDULE, false);
+    await processSequence(contacts, welcome, false);
 
     // Re-engagement sequence (skip if purchased)
     console.log("\n── Re-Engagement Sequence ──");
-    await processSequence(contacts, REENGAGE_SCHEDULE, true);
+    await processSequence(contacts, reengage, true);
 
     console.log("\n[sequence-runner] Done.");
     return res.status(200).json({ ok: true, processed: contacts.length });
