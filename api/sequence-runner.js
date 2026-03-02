@@ -19,7 +19,7 @@ const PURCHASED_TAG_ID = "19";
 // ── IDs created by setup-ac.js ────────────────────────────────────────────────
 // Queue list: a temporary holding list used while a campaign is being sent.
 // Tag IDs: mark that a contact has already received a given email.
-const QUEUE_LIST_ID = process.env.MGTHO_QUEUE_LIST_ID || "7"; // update after setup
+const QUEUE_LIST_ID = process.env.MGTHO_QUEUE_LIST_ID || "8";
 const TAG_IDS = {
   "mgtho-email-1-sent": process.env.TAG_EMAIL_1 || "33",
   "mgtho-email-2-sent": process.env.TAG_EMAIL_2 || "34",
