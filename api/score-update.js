@@ -41,7 +41,7 @@ module.exports = async (req, res) => {
   // Update score — use PUT /fieldValues/:id if record exists, else create via contact sync
   if (scoreFV?.id) {
     await acFetch(`/fieldValues/${scoreFV.id}`, "PUT", {
-      fieldValue: { value: String(newScore) },
+      fieldValue: { contact: String(contactId), field: SCORE_FIELD_ID, value: String(newScore) },
     });
   } else {
     await acFetch("/contact/sync", "POST", {
