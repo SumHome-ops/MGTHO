@@ -1,4 +1,7 @@
 {
+  "dependencies": {
+    "resend": "^3.2.0"
+  },
   "devDependencies": {
     "dotenv": "^17.3.1"
   }
